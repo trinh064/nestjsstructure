@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Entity and Controller Generator</title>
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+
+    button {
+      padding: 5px 5px;
+      background-color: #24b724;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    textarea {
+      width: 100%;
+      height: 200px;
+      font-family: monospace;
+      border: 1px solid #ccc;
+      padding: 8px;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Entity and Controller Generator</h1>
+
+  <table id="fieldsTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Nullable</th>
+        <th>Unique</th>
+        <th>Primary Key</th>
+        <th>Optional</th>
+        <th>Description</th>
+        <th>Example</th>
+        <th>Constraint(*_*)</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr>
+        <td><input type="text" name="name" required /></td>
+        <td>
+          <select name="type">
+            <option value="string">string</option>
+            <option value="number">number</option>
+            <option value="boolean">boolean</option>
+            <option value="Date">Date</option>
+            <option value="ENUM">ENUM</option>
+            <option value="any">any</option>
+          </select>
+        </td>
+        <td><input type="checkbox" name="nullable" /></td>
+        <td><input type="checkbox" name="unique" /></td>
+        <td><input type="checkbox" name="primaryKey" /></td>
+        <td><input type="checkbox" name="optional" /></td>
+        <td><input type="text" name="description" /></td>
+        <td><input type="text" name="example" /></td>
+        <td><input type="text" name="constraint" /></td>
+        <td>
+        <button onclick="removeRow(this)" style="background-color: rgb(28, 29, 28);">Remove</button>
+        <button class="btn" style="background-color: rgb(13, 209, 32);" onclick="moveUp(this)">^</button>
+        <button class="btn" style="background-color: red;" onclick="moveDown(this)">v</button>
+	      </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <button onclick="addRow()">Add Row</button>
+  <button onclick="downloadCSV()">Download CSV</button>
+  <input type="file" id="csvUpload" accept=".csv">
+  <button onclick="uploadCSV()">Upload CSV</button>
+  <button onclick="generateCode()">
+    Generate Entity, Controller, DTO, and Repository
+  </button>
+
+  <h2>Generated Entity:</h2>
+  <textarea id="entityOutput"></textarea>
+
+  <h2>Generated IEntity:</h2>
+  <textarea id="IentityOutput"></textarea>
+
+  <h2>Generated DTO:</h2>
+  <textarea id="dtoOutput"></textarea>
+
+  <h2>Generated FilterDTO:</h2>
+  <textarea id="filterDtoOutput"></textarea>
+
+  <h2>Generated Repository:</h2>
+  <textarea id="repositoryOutput"></textarea>
+
+  <script>
+    function addRow() {
+      const tableBody = document.getElementById("tableBody");
+      const newRow = tableBody.insertRow();
+      newRow.innerHTML = `
+    <tr>
+      <td><input type="text" name="name" required></td>
+      <td>
+        <select name="type">
+          <option value="string">string</option>
+          <option value="number">number</option>
+          <option value="boolean">boolean</option>
+          <option value="Date">Date</option>
+          <option value="ENUM">ENUM</option>
+          <option value="any">any</option>
+        </select>
+      </td>
+      <td><input type="checkbox" name="nullable"></td>
+      <td><input type="checkbox" name="unique"></td>
+      <td><input type="checkbox" name="primaryKey"></td>
+      <td><input type="checkbox" name="optional"></td>
+      <td><input type="text" name="description"></td>
+      <td><input type="text" name="example"></td>
+      <td><input type="text" name="constraint"></td>
+      <td>
+        <button onclick="removeRow(this)" style="background-color: rgb(28, 29, 28);">Remove</button>
+        <button class="btn" style="background-color: rgb(13, 209, 32);" onclick="moveUp(this)">^</button>
+        <button class="btn" style="background-color: red;" onclick="moveDown(this)">v</button>
+	      </td>
+    </tr>
+  `;
+  return newRow;
+    }
+
+        function moveUp(button) {
+            let row = button.closest("tr");
+            if (row.previousElementSibling) {
+                row.parentNode.insertBefore(row, row.previousElementSibling);
+            }
+        }
+
+        function moveDown(button) {
+            let row = button.closest("tr");
+            if (row.nextElementSibling) {
+                row.parentNode.insertBefore(row.nextElementSibling, row);
+            }
+        }
+
+    function downloadCSV() {
+      const table = document.getElementById("fieldsTable");
+      const rows = Array.from(table.querySelectorAll("tr")); // Ensure NodeList is converted to Array
+      const csv = rows.map(row => {
+        const cells = Array.from(row.querySelectorAll("td, th")); // Include both th and td
+        return cells.map(cell => {
+          const select= cell.querySelector('select');
+          const input = cell.querySelector('input');
+          let text = "";
+          
+          if (input) {
+            if (input.type === 'checkbox') {
+              text = input.checked ? 'TRUE' : 'FALSE';
+            } else {
+              text = input.value;
+            }
+          } else {
+            text = cell.innerText;
+          }
+          if (select) {text=select.value }
+          //escape commas and quotes
+          text = text.replace(/"/g, '""');
+          if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+            return `"${text}"`;
+          }
+          return text;
+        }).join(",");
+      }).join("\n");
+
+      const filename = "table.csv";
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+      element.setAttribute('download', filename);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+
+    function uploadCSV() {
+      const fileInput = document.getElementById('csvUpload');
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('Please select a CSV file.');
+        return;
+      }
+
+      const reader = new FileReader();
+
+      reader.onload = function (event) {
+        const csv = event.target.result;
+        const rows = csv.split('\n');
+        const table = document.getElementById('fieldsTable');
+        const tbody = table.querySelector('tbody');
+        
+        rows.forEach((row, index) => {
+          if (index==0) return;
+          console.log(row)
+           if (index > 0 || table.querySelector('thead').rows.length > 0) {
+            
+            let newRow=addRow();
+            row.split(',').forEach((cell, cellIndex) => { console.log(cell, cellIndex);
+              if ( [0,6,7,8].includes(cellIndex) ){
+                newRow.cells[cellIndex].querySelector("input").value=cell;
+              }
+              else if( [2,3,4,5].includes(cellIndex) ){
+                console.log(newRow.cells[cellIndex].querySelector("input"));
+                newRow.cells[cellIndex].querySelector("input").checked=cell==='TRUE';
+              }
+              else if( [1].includes(cellIndex) ){
+                console.log(newRow.cells[cellIndex].querySelector("select"));
+                newRow.cells[cellIndex].querySelector("select").value=cell;
+              }
+              //console.log(newRow.cells[0].)
+            });
+          }
+        });
+      };
+
+      reader.readAsText(file);
+    }
+
+    function removeRow(button) {
+      const row = button.parentNode.parentNode;
+      row.parentNode.removeChild(row);
+    }
+
+    let entityName = "EntityName";
+
+    function generateCode() {
+      entityName = prompt(
+        "Enter Entity Name (e.g., User):",
+        "YourEntityName"
+      );
+      generateEntity();
+      generateIEntity();
+      generateDTO();
+      generateFilterDTO();
+      generateRepository();
+    }
+
+    function generateEntity() {
+      const tableBody = document.getElementById("tableBody");
+      let entityCode = "";
+
+      if (!entityName) {
+        alert("Entity name is required.");
+        return;
+      }
+
+      entityCode += `  @Entity("${entityName}")\n export class ${entityName}OrmEntity extends BaseIdentityEntity{
+`;
+
+      for (const row of tableBody.rows) {
+        const name = row.cells[0].querySelector("input").value;
+        const type = row.cells[1].querySelector("select").value;
+        const nullable = row.cells[2].querySelector("input").checked;
+        const unique = row.cells[3].querySelector("input").checked;
+        const primaryKey = row.cells[4].querySelector("input").checked;
+        const optional = row.cells[5].querySelector("input").checked;
+        const description = row.cells[6].querySelector("input").value;
+        const example = row.cells[7].querySelector("input").value;
+        const constraint = row.cells[8].querySelector("input").value;
+        let columnOptions = {};
+
+        if (primaryKey) {
+          entityCode += `  @PrimaryGeneratedColumn()\n  ${name}: ${type};\n`;
+          continue;
+        } else {
+          columnOptions.nullable = nullable;
+          if (unique) columnOptions.unique = unique;
+	  if (type=="number") columnOptions.type =`'numeric'` ;
+	if (type=="Date") columnOptions.type =`'timestamptz'` ;
+          columnOptions.comment = `'${description}'`;
+          //columnOptions.default = `'${example}'`;
+          console.log(description + example);
+          console.log(columnOptions);
+          entityCode += `  @Column(${JSON.stringify(columnOptions).replace(
+            /["]+/g,
+            ""
+          )}) ${constraint == "" ? "" : "\n  @Check('" + constraint + "')\n"}  \n${name}${optional ? "?" : ""}: ${type};\n\n`;
+        }
+      }
+
+      entityCode += "}\n";
+
+      document.getElementById("entityOutput").value = entityCode;
+    }
+
+    function generateIEntity() {
+      const tableBody = document.getElementById("tableBody");
+      let IentityCode = "";
+
+      IentityCode += `export class ${entityName} {
+`;
+
+      for (const row of tableBody.rows) {
+        const name = row.cells[0].querySelector("input").value;
+        const type = row.cells[1].querySelector("select").value;
+        const nullable = row.cells[2].querySelector("input").checked;
+        const unique = row.cells[3].querySelector("input").checked;
+        const primaryKey = row.cells[4].querySelector("input").checked;
+        const optional = row.cells[5].querySelector("input").checked;
+        const description = row.cells[6].querySelector("input").value;
+        const example = row.cells[7].querySelector("input").value;
+
+        let columnOptions = {};
+
+        if (primaryKey) {
+          IentityCode += `  @PrimaryGeneratedColumn()\n  ${name}: ${type};\n`;
+          continue;
+        } else {
+          columnOptions.nullable = nullable;
+          if (unique) columnOptions.unique = unique;
+          columnOptions.comment = `'${description}'`;
+          //columnOptions.default = `'${example}'`;
+          console.log(description + example);
+          console.log(columnOptions);
+          IentityCode += `  @Expose()\n  ${name}${optional ? "?" : ""
+            }: ${type};\n\n`;
+        }
+      }
+
+      IentityCode += "}\n";
+
+      document.getElementById("IentityOutput").value = IentityCode;
+    }
+
+    function generateDTO() {
+      if (!entityName) {
+        alert("Entity name is required.");
+        return;
+      }
+
+      let dtoCode = `import { IsOptional, I18nIsString, I18nIsNumber, I18nIsBoolean, I18nIsDate } from 'class-validator';\n\nexport class Create${entityName}DTO {\n`;
+
+      for (const row of tableBody.rows) {
+        const description = row.cells[6].querySelector("input").value;
+        const example = row.cells[7].querySelector("input").value;
+        const name = row.cells[0].querySelector("input").value;
+        const type = row.cells[1].querySelector("select").value;
+        const optional = row.cells[5].querySelector("input").checked;
+
+        let decorator = "";
+        dtoCode += `  @ApiProperty({ description: '${description}', example: '${example}' })\n`;
+        if (type === "string") decorator = "@I18nIsString()";
+        else if (type === "number") decorator = "@I18nIsNumber()";
+        else if (type === "boolean") decorator = "@I18nIsBoolean()";
+        else if (type === "Date") decorator = "@I18nIsDate()";
+        else if (type === "ENUM") decorator = "@I18nIsEnum()";
+
+        dtoCode += `  ${optional ? "@IsOptional()\n  " : "@I18nIsNotEmpty()\n"
+          }${decorator}\n  ${name}${optional ? "?" : ""}: ${type};\n\n`;
+      }
+
+      dtoCode += "}\n";
+      document.getElementById("dtoOutput").value = dtoCode;
+    }
+
+    function generateFilterDTO() {
+      if (!entityName) {
+        alert("Entity name is required.");
+        return;
+      }
+
+      let filterDtoCode = `import { ApiPropertyOptional } from '@nestjs/swagger';\nimport { IsEnum } from 'class-validator';\n\nexport class ${entityName}FilterDto extends BaseFilterQuery{\n`;
+      for (const row of tableBody.rows) {
+        const description = row.cells[6].querySelector("input").value;
+        const example = row.cells[7].querySelector("input").value;
+        const type = row.cells[1].querySelector("select").value;
+        const name = row.cells[0].querySelector("input").value;
+        filterDtoCode += `  @ApiPropertyOptional({ description: '${description}' ${type == "ENUM" ? ",enum:ENUM" : ""} })\n`;
+        filterDtoCode += `  @IsOptional()\n `
+        let decorator = "";
+        if (type === "string") decorator = "@I18nIsString()";
+        else if (type === "number") decorator = "@I18nIsNumber()";
+        else if (type === "boolean") decorator = "@I18nIsBoolean()";
+        else if (type === "Date") decorator = "@I18nIsDate()";
+        else if (type === "ENUM") decorator = `@IsEnum(${type})`;
+
+        filterDtoCode += `  ${decorator}\n`
+        filterDtoCode += `  ${name}?: ${type};\n`;
+        filterDtoCode += `\n`;
+      }
+      filterDtoCode += `}`;
+      document.getElementById("filterDtoOutput").value = filterDtoCode;
+    }
+
+    function generateRepository() {
+      const lowerEntityName = entityName.toLowerCase();
+
+      if (!entityName) {
+        alert("Entity name is required.");
+        return;
+      }
+
+      const repositoryCode = `import { Repository } from 'typeorm';
+        \nimport { ${entityName} } from './${lowerEntityName}.entity';
+        \n
+        \n@Injectable()
+        \nexport class ${entityName}Repository extends BaseRepository<${entityName}, ${entityName}OrmEntity>
+        \nimplements I${entityName}Repository  {
+        \n constructor(dataSource: DataSource) {
+          \nsuper(${entityName}OrmEntity, dataSource, new ${entityName}Mapper());}
+          \n  async findAllAndCount(query: FilterQuery${entityName}Dto): Promise<Any> {
+          \n    const queryBuilder = this.fCreateQueryBuilder(${entityName}OrmEntity.name, query);
+          \n    if (query.code) { queryBuilder.andWhere('code ILIKE :code', { code: query.code });  }
+          \n    }
+          \n
+          \n  public async create(input: ${entityName}): Promise<${entityName}> {
+          \n    return this.saveAndUpdateCossde(input, ENUM_CODE_PREFIX_TABLE.${entityName});
+          \n  }
+	\n     public async upsert(input: Create${entityName}Dto): Promise<${entityName}> {
+        return await this.repository.upsert(input, ['id'])
+            .then(async (result) => { return await this.findOne({ where: { id: result.identifiers[0].id } }); });
+    }
+          \n}
+          \n`;
+
+      document.getElementById("repositoryOutput").value = repositoryCode;
+    }
+  </script>
+</body>
+
+</html>
+
